@@ -1,0 +1,544 @@
+<!--
+==========================================================================
+ MMRS - Mintzberg Managerial Role Survey  |  SATU FILE HTML (nama file: Index)
+==========================================================================
+ Semua logika (skoring, analisis, spider, cetak Word/PDF) ada di file ini.
+ Satu-satunya kode server yang TIDAK bisa dihindari: menulis ke Google Sheet.
+ Tempel kode berikut di Code.gs (hanya 2 fungsi), lalu Deploy > Web app:
+
+ const SS_ID='1-zkS4RjtH3eHmcTOuzUgcE3pbOdSoKm150C13olKDxc', SHEET='Data Kuesioner';
+ function doGet(){return HtmlService.createHtmlOutputFromFile('Index').setTitle('MMRS')
+   .addMetaTag('viewport','width=device-width, initial-scale=1');}
+ function saveRow(head,row){
+   const lock=LockService.getScriptLock(); lock.waitLock(20000);
+   try{
+     const ss=SpreadsheetApp.openById(SS_ID); let sh=ss.getSheetByName(SHEET);
+     if(!sh){sh=ss.insertSheet(SHEET); sh.appendRow(head);
+       sh.getRange(1,1,1,head.length).setFontWeight('bold').setBackground('#1f3a5f').setFontColor('#fff'); sh.setFrozenRows(1);}
+     sh.appendRow(row); return true;
+   } finally {lock.releaseLock();}
+ }
+==========================================================================
+-->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MMRS - Mintzberg Managerial Role Survey</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@7.8.2/build/index.js"></script>
+<style>
+:root{--navy:#1f3a5f;--teal:#12a4a0;--bg:#f2f5f9;--line:#dce3ec;--txt:#1d2733;--mut:#5d6b7b;--ok:#1e9e5a;--warn:#e0a100;--bad:#d64545}
+*{box-sizing:border-box}
+body{margin:0;font-family:Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--txt)}
+
+/* 1. Header dibuat statis / sticky saat di-scroll */
+header{
+  position:sticky;
+  top:0;
+  z-index:100;
+  background:linear-gradient(120deg,var(--navy),#2c5b8f 60%,var(--teal));
+  color:#fff;
+  padding:16px 20px 0;
+  box-shadow:0 3px 10px rgba(0,0,0,0.15);
+}
+.header-top{display:flex;justify-content:space-between;align-items:flex-start;max-width:980px;margin:0 auto}
+header h1{margin:0;font-size:1.3rem}
+header p{margin:4px 0 12px;opacity:.88;font-size:.88rem}
+.user-info{display:flex;align-items:center;gap:10px;font-size:.85rem}
+.btn-logout{background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);padding:4px 10px;border-radius:6px;cursor:pointer;font-size:.8rem}
+.btn-logout:hover{background:rgba(214,69,69,.8);border-color:transparent}
+
+.tabs{display:flex;gap:6px;max-width:980px;margin:0 auto}
+.tab{padding:10px 18px;border:0;border-radius:10px 10px 0 0;background:rgba(255,255,255,.18);color:#fff;font-size:.95rem;cursor:pointer}
+.tab.on{background:var(--bg);color:var(--navy);font-weight:700}
+main{max-width:980px;margin:0 auto;padding:18px 14px 60px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px;box-shadow:0 2px 6px rgba(31,58,95,.05)}
+h2{margin:0 0 12px;font-size:1.1rem;color:var(--navy)}
+h3{margin:14px 0 6px;font-size:1rem;color:var(--navy)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:640px){.grid{grid-template-columns:1fr}}
+label.f{display:block;font-size:.85rem;color:var(--mut);margin-bottom:4px}
+input[type=text], input[type=password]{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;font-size:.95rem;background:#eef3fb}
+input[type=text]:focus, input[type=password]:focus{outline:none;border-color:var(--teal);background:#fff}
+ol.pet{margin:0;padding-left:20px;line-height:1.6;font-size:.92rem}
+.scale{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.scale span{background:#e6f6f5;border-radius:20px;padding:4px 10px;font-size:.8rem}
+.role{background:var(--navy);color:#fff;border-radius:8px;padding:7px 12px;font-size:.9rem;margin:16px 0 8px}
+.q{padding:10px 0;border-bottom:1px dashed var(--line)}.q p{margin:0 0 8px;font-size:.93rem}
+.opts{display:flex;gap:8px;flex-wrap:wrap}.opts label{cursor:pointer}.opts input{display:none}
+.opts span{display:inline-block;min-width:42px;text-align:center;padding:7px 0;border:1px solid var(--line);border-radius:8px;background:#eef3fb;font-weight:600}
+.opts input:checked+span{background:var(--teal);border-color:var(--teal);color:#fff}
+.bar{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line);padding:12px;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:0 -18px -18px;border-radius:0 0 14px 14px}
+button.p{background:linear-gradient(120deg,var(--navy),var(--teal));color:#fff;border:0;border-radius:10px;padding:12px 22px;font-size:1rem;font-weight:700;cursor:pointer}
+button.s{background:#fff;border:1px solid var(--navy);color:var(--navy);border-radius:10px;padding:10px 16px;cursor:pointer;font-weight:600}
+button:disabled{opacity:.55;cursor:wait}
+.kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}@media(max-width:640px){.kpi{grid-template-columns:1fr}}
+.kpi div{background:#fff8dc;border:1px solid #f0e2a0;border-radius:12px;padding:12px}.kpi small{color:var(--mut)}.kpi b{display:block;font-size:1.15rem;margin-top:4px;color:var(--navy)}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:.85rem}th,td{border:1px solid var(--line);padding:7px 8px;text-align:left}th{background:var(--navy);color:#fff}
+td.n{text-align:center}.b{padding:2px 8px;border-radius:12px;color:#fff;font-size:.75rem;white-space:nowrap}
+.g{background:var(--ok)}.y{background:var(--warn)}.r{background:var(--bad)}
+.chart{text-align:center}canvas{max-width:100%;height:auto;border-radius:12px}
+.an h3{border-left:4px solid var(--teal);padding-left:8px}.an p{line-height:1.65;font-size:.93rem;margin:6px 0;white-space:pre-line}
+.empty{text-align:center;color:var(--mut);padding:40px 10px}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:20px;background:#1d2733;color:#fff;padding:12px 18px;border-radius:10px;display:none;z-index:999;max-width:90%}
+.hide{display:none !important}
+
+/* 2. Style Layar Login */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:linear-gradient(135deg,var(--navy),#2c5b8f 60%,var(--teal))}
+.login-box{background:#fff;border-radius:16px;padding:32px 28px;width:100%;max-width:420px;box-shadow:0 12px 36px rgba(0,0,0,.25);text-align:center}
+.login-box h2{color:var(--navy);margin:0 0 6px;font-size:1.35rem}
+.login-box p{color:var(--mut);font-size:.88rem;margin:0 0 20px}
+.login-field{text-align:left;margin-bottom:14px}
+.login-err{background:#fee2e2;color:var(--bad);border:1px solid #fca5a5;padding:9px 12px;border-radius:8px;font-size:.85rem;margin-bottom:14px;text-align:left}
+</style>
+</head>
+<body>
+
+<!-- ===================== SECTION LOGIN ===================== -->
+<div id="loginSection" class="login-wrap">
+  <div class="login-box">
+    <h2>Akses Kuesioner MMRS</h2>
+    <p>Silakan masukkan identitas responden dan kata sandi akses.</p>
+    
+    <div id="loginAlert" class="login-err hide"></div>
+
+    <div class="login-field">
+      <label class="f">Username / Nama Responden</label>
+      <input type="text" id="logUser" placeholder="Masukkan nama atau username" autocomplete="off">
+    </div>
+
+    <div class="login-field">
+      <label class="f">Password Akses</label>
+      <input type="password" id="logPass" placeholder="Format: nggakada-tahun" autocomplete="off">
+    </div>
+
+    <button class="p" style="width:100%;margin-top:6px" onclick="doLogin()">Masuk</button>
+  </div>
+</div>
+
+<!-- ===================== APLIKASI UTAMA MMRS ===================== -->
+<div id="appContainer" class="hide">
+  <header>
+    <div class="header-top">
+      <div>
+        <h1>Mintzberg Managerial Role Survey (MMRS)</h1>
+        <p>Diagnostik 10 peran manajerial Henry Mintzberg: Interpersonal, Informational, dan Decisional</p>
+      </div>
+      <div class="user-info">
+        <span id="activeUserBadge" style="opacity:.9"></span>
+        <button class="btn-logout" onclick="doLogout()" title="Keluar dari sesi">Keluar</button>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab on" id="t1" onclick="showTab(1)">Kuesioner</button>
+      <button class="tab" id="t2" onclick="showTab(2)">Hitung dan Analisis</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="p1">
+      <div class="card">
+        <h2>Identitas Responden</h2>
+        <div class="grid">
+          <div><label class="f">Nama Responden *</label><input type="text" id="nama" autocomplete="off"></div>
+          <div><label class="f">Jabatan / Posisi</label><input type="text" id="jabatan" autocomplete="off"></div>
+          <div><label class="f">Divisi / Departemen</label><input type="text" id="divisi" autocomplete="off"></div>
+          <div><label class="f">Nama Organisasi</label><input type="text" id="organisasi" autocomplete="off"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Petunjuk Pengisian</h2>
+        <ol class="pet">
+          <li>Isi identitas responden pada bagian atas (nama wajib diisi).</li>
+          <li>Baca 30 pernyataan perilaku manajerial yang dikelompokkan dalam 10 peran Mintzberg.</li>
+          <li>Nilai seberapa sering Anda melakukan perilaku tersebut dengan memilih angka 1 sampai 5.</li>
+          <li>Jawablah jujur sesuai kebiasaan kerja nyata, bukan kondisi ideal. Seluruh 30 item wajib terisi.</li>
+          <li>Tekan <b>Hitung dan Analisis</b>. Data disimpan ke database, form dikosongkan, dan hasil tampil di tab Hitung dan Analisis.</li>
+        </ol>
+        <div class="scale"><span>1 = Sangat Jarang</span><span>2 = Jarang</span><span>3 = Kadang-Kadang</span><span>4 = Sering</span><span>5 = Sangat Sering</span></div>
+      </div>
+      <div class="card">
+        <h2>Pernyataan Indikator Perilaku</h2>
+        <div id="qs"></div>
+        <div class="bar">
+          <span id="prog" style="color:var(--mut);font-size:.9rem">Terisi 0 / 30</span>
+          <button class="p" id="btnHitung" onclick="hitung()">Hitung dan Analisis</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="p2" class="hide">
+      <div class="card empty" id="emptyRes">Belum ada hasil. Isi kuesioner lalu tekan <b>Hitung dan Analisis</b>.</div>
+      <div id="res" class="hide">
+        <div class="card">
+          <h2>Hasil Skoring</h2>
+          <p id="meta" style="margin:0 0 12px;color:var(--mut);font-size:.88rem"></p>
+          <div class="kpi">
+            <div><small>Peran Manajerial Dominan</small><b id="kDom"></b></div>
+            <div><small>Kategori Utama Dominan</small><b id="kCat"></b></div>
+            <div><small>Rata-rata Skor Manajerial</small><b id="kAvg"></b></div>
+          </div>
+          <h3>Rekapitulasi 10 Peran</h3><div class="tw"><table id="tRole"></table></div>
+          <h3>Rekapitulasi 3 Kategori</h3><div class="tw"><table id="tCat"></table></div>
+        </div>
+        <div class="card chart"><h2>Grafik Spider Profil Peran</h2><canvas id="spider" width="760" height="760"></canvas></div>
+        <div class="card an"><h2>Analisis dan Development <small id="wc" style="font-weight:400;color:var(--mut)"></small></h2><div id="analysis"></div></div>
+        <div class="card" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <b style="color:var(--navy)">Cetak Laporan:</b>
+          <button class="s" id="bDocx" onclick="cetak('docx')">Word (.docx)</button>
+          <button class="s" id="bPdf" onclick="cetak('pdf')">PDF</button>
+          <span id="exMsg" style="color:var(--mut);font-size:.85rem"></span>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ===================== UTIL DILETAKKAN PALING ATAS ===================== */
+let LAST = null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const r2 = n => Math.round(n * 100) / 100;
+const fmt = n => r2(n).toFixed(2).replace('.', ',');
+const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+const level = s => s >= 4 ? 'Dominan (Sangat Tinggi)' : s >= 3 ? 'Moderat' : 'Rendah';
+const status = g => g >= -1e-9 ? 'Memenuhi Target' : g >= -0.5 - 1e-9 ? 'Perlu Perbaikan' : 'Prioritas Pengembangan';
+const catStatus = g => g >= -1e-9 ? 'Sangat Baik' : g >= -0.5 - 1e-9 ? 'Cukup Baik' : 'Perlu Ditingkatkan';
+const inGAS = () => typeof google !== 'undefined' && google.script && google.script.run;
+function toast(m, ms) { const t = $('toast'); t.textContent = m; t.style.display = 'block'; setTimeout(() => t.style.display = 'none', ms || 3500); }
+function showTab(n) {
+  $('p1').classList.toggle('hide', n !== 1); $('p2').classList.toggle('hide', n !== 2);
+  $('t1').classList.toggle('on', n === 1); $('t2').classList.toggle('on', n === 2);
+  if (n === 2 && LAST) drawSpider(LAST);
+  window.scrollTo(0, 0);
+}
+
+/* ===================== LOGIKA LOGIN ===================== */
+function getValidPassword() {
+  return 'nggakada-' + new Date().getFullYear();
+}
+
+function doLogin() {
+  const u = $('logUser').value.trim();
+  const p = $('logPass').value.trim();
+  const validPass = getValidPassword();
+  const alertBox = $('loginAlert');
+
+  if (!u) {
+    alertBox.textContent = 'Username / Nama wajib diisi.';
+    alertBox.classList.remove('hide');
+    $('logUser').focus();
+    return;
+  }
+
+  // Pengecekan tanpa membedakan huruf besar/kecil (case-insensitive)
+  if (p.toLowerCase() !== validPass.toLowerCase()) {
+    alertBox.textContent = 'Password salah. Format tahun ini adalah: ' + validPass;
+    alertBox.classList.remove('hide');
+    $('logPass').focus();
+    return;
+  }
+
+  // Berhasil Login
+  alertBox.classList.add('hide');
+  $('loginSection').classList.add('hide');
+  $('appContainer').classList.remove('hide');
+  
+  if (!$('nama').value) $('nama').value = u;
+  $('activeUserBadge').textContent = '👤 ' + u;
+  
+  toast('Selamat datang, ' + u + '!');
+  window.scrollTo(0, 0);
+}
+
+function doLogout() {
+  if (confirm('Apakah Anda ingin keluar dari sesi kuesioner ini?')) {
+    $('appContainer').classList.add('hide');
+    $('loginSection').classList.remove('hide');
+    $('logPass').value = '';
+    $('loginAlert').classList.add('hide');
+    $('logUser').focus();
+  }
+}
+
+// Pasang listener setelah elemen dan fungsi $ siap
+$('logUser').addEventListener('keyup', e => { if (e.key === 'Enter') $('logPass').focus(); });
+$('logPass').addEventListener('keyup', e => { if (e.key === 'Enter') doLogin(); });
+$('logUser').addEventListener('input', () => $('loginAlert').classList.add('hide'));
+$('logPass').addEventListener('input', () => $('loginAlert').classList.add('hide'));
+
+/* ===================== DATA INSTRUMEN ===================== */
+const BENCH = 4;
+const ROLES = [
+ {k:'Figurehead',n:'Figurehead (Simbol/Tokoh)',c:'Interpersonal',o:'Representasi formal & seremoni organisasi',f:'Menjaga citra & kredibilitas lembaga'},
+ {k:'Leader',n:'Leader (Pemimpin)',c:'Interpersonal',o:'Mengarahkan, memotivasi, & membina tim',f:'Pengembangan kapasitas & komitmen staf'},
+ {k:'Liaison',n:'Liaison (Penghubung)',c:'Interpersonal',o:'Membangun jaringan kontak eksternal/internal',f:'Perluasan jejaring & kemitraan strategis'},
+ {k:'Monitor',n:'Monitor (Pemantau)',c:'Informational',o:'Mencari & memantau data lingkungan bisnis',f:'Penguatan sistem intelijen bisnis'},
+ {k:'Disseminator',n:'Disseminator (Penyebar)',c:'Informational',o:'Meneruskan informasi strategis ke internal',f:'Peningkatan transparansi & komunikasi tim'},
+ {k:'Spokesperson',n:'Spokesperson (Juru Bicara)',c:'Informational',o:'Menyampaikan posisi resmi ke pihak eksternal',f:'Komunikasi publik & pemangku kepentingan'},
+ {k:'Entrepreneur',n:'Entrepreneur (Inovator)',c:'Decisional',o:'Memprakarsai perbaikan & proyek inovasi',f:'Eksperimentasi & pembaruan proses kerja'},
+ {k:'Disturbance Handler',n:'Disturbance Handler (Penangan Gangguan)',c:'Decisional',o:'Menyelesaikan krisis & hambatan tak terduga',f:'Manajemen krisis & penyelesaian konflik'},
+ {k:'Resource Allocator',n:'Resource Allocator (Pengalokasi Sumber Daya)',c:'Decisional',o:'Menentukan pembagian anggaran, staf, & waktu',f:'Optimasi alokasi & efisiensi anggaran'},
+ {k:'Negotiator',n:'Negotiator (Negosiator)',c:'Decisional',o:'Mewakili unit kerja dalam negosiasi penting',f:'Peningkatan keterampilan negosiasi & win-win'}
+];
+const CATS = [{n:'Interpersonal Roles',r:[0,1,2]},{n:'Informational Roles',r:[3,4,5]},{n:'Decisional Roles',r:[6,7,8,9]}];
+const ITEMS = [
+ 'Saya menghadiri acara seremonial, penyambutan tamu resmi, dan kegiatan formal organisasi.',
+ 'Saya bertindak sebagai representasi formal dan simbol utama unit kerja/perusahaan.',
+ 'Saya menandatangani dokumen hukum, persetujuan resmi, dan surat keputusan penting.',
+ 'Saya mengarahkan, memotivasi, dan menginspirasi anggota tim untuk mencapai sasaran kerja.',
+ 'Saya memfasilitasi pengembangan kapasitas, pelatihan, dan bimbingan karir bagi bawahan.',
+ 'Saya merekrut, mengelola kinerja, dan memberikan umpan balik konstruktif kepada staf.',
+ 'Saya membangun dan memelihara jaringan kontak profesional di luar rantai komando resmi.',
+ 'Saya melakukan koordinasi intensif dengan manajer divisi lain untuk keselarasan operasional.',
+ 'Saya menghadiri forum industri, asosiasi, dan jaringan eksternal untuk peluang kemitraan.',
+ 'Saya aktif mencari dan mengumpulkan data perkembangan pasar, pesaing, dan tren industri.',
+ 'Saya memantau laporan kinerja internal dan indikator operasional secara berkala.',
+ 'Saya membangun sistem pemantauan informasi untuk mengidentifikasi ancaman dan peluang.',
+ 'Saya meneruskan informasi strategis dan fakta penting dari manajemen puncak kepada tim.',
+ 'Saya mengadakan rapat rutin untuk berbagi pengetahuan dan menyelaraskan pemahaman staf.',
+ 'Saya memastikan arus informasi antar anggota tim berjalan secara transparan dan terbuka.',
+ 'Saya menyampaikan laporan kinerja dan posisi resmi unit kerja kepada direksi/pihak eksternal.',
+ 'Saya memberikan presentasi resmi dan penjelasan kebijakan kepada pemangku kepentingan luar.',
+ 'Saya menjawab pertanyaan publik/media atau pihak terkait mengenai kebijakan organisasi.',
+ 'Saya memprakarsai proyek perbaikan, inovasi proses kerja, dan eksperimen cara baru.',
+ 'Saya merancang strategi pembaruan dan adaptasi bisnis menghadapi perubahan lingkungan.',
+ 'Saya mendorong budaya kreatif dan keberanian mengambil risiko terukur di dalam tim.',
+ 'Saya mengambil tindakan korektif cepat saat terjadi krisis atau konflik terduga di unit kerja.',
+ 'Saya menyelesaikan perselisihan antar staf dan hambatan operasional yang mendesak.',
+ 'Saya mengelola tekanan situasi darurat agar tidak mengganggu stabilitas organisasi.',
+ 'Saya menyusun dan memutuskan alokasi anggaran belanja serta investasi unit kerja.',
+ 'Saya membagi alokasi waktu, prioritas tugas, dan penugasan staf secara proporsional.',
+ 'Saya menyetujui penggunaan fasilitas, peralatan, dan sumber daya perusahaan.',
+ 'Saya mewakili unit kerja/perusahaan dalam negosiasi kesepakatan bisnis dan kontrak.',
+ 'Saya bernegosiasi dengan manajer lain mengenai alokasi anggaran dan dukungan antar divisi.',
+ 'Saya menegosiasikan solusi kompromi yang menguntungkan saat terjadi perbedaan kepentingan.'
+];
+
+/* ===================== FORM ===================== */
+(function renderForm() {
+ let h = '';
+ ITEMS.forEach((q, i) => {
+   if (i % 3 === 0) h += '<div class="role">' + (i / 3 + 1) + '. ' + esc(ROLES[i / 3].n) + ' <small style="opacity:.8">(' + ROLES[i / 3].c + ')</small></div>';
+   h += '<div class="q"><p><b>' + (i + 1) + '.</b> ' + esc(q) + '</p><div class="opts">';
+   for (let v = 1; v <= 5; v++) h += '<label><input type="radio" name="q' + i + '" value="' + v + '" onchange="prog()"><span>' + v + '</span></label>';
+   h += '</div></div>';
+ });
+ $('qs').innerHTML = h;
+})();
+
+function prog() { $('prog').textContent = 'Terisi ' + document.querySelectorAll('#qs input:checked').length + ' / 30'; }
+function clearForm() {
+ ['nama', 'jabatan', 'divisi', 'organisasi'].forEach(id => $(id).value = '');
+ document.querySelectorAll('#qs input').forEach(i => i.checked = false);
+ prog();
+}
+
+/* ===================== SKORING ===================== */
+function calculate(ans) {
+ const roles = ROLES.map((r, i) => {
+   const s = avg(ans.slice(i * 3, i * 3 + 3));
+   return {no: i + 1, k: r.k, n: r.n, c: r.c, o: r.o, f: r.f, score: s, bench: BENCH, gap: s - BENCH, status: status(s - BENCH), level: level(s)};
+ });
+ const cats = CATS.map(c => {
+   const s = avg(c.r.map(i => roles[i].score));
+   return {n: c.n, roles: c.r.map(i => ROLES[i].k).join(', '), score: s, bench: BENCH, gap: s - BENCH, status: catStatus(s - BENCH)};
+ });
+ let top = 0; roles.forEach((r, i) => { if (r.score > roles[top].score) top = i; });
+ return {roles, cats, overall: avg(roles.map(r => r.score)), dominant: roles[top].n, dominantCat: roles[top].c};
+}
+
+/* ===================== ANALISIS ===================== */
+function buildAnalysis(p, res) {
+ const R = res.roles, sec = [], nm = p.nama || 'Responden';
+ const sorted = R.slice().sort((a, b) => b.score - a.score), strong = sorted.slice(0, 3);
+ const weak = R.filter(r => r.gap < -1e-9).sort((a, b) => a.gap - b.gap), low = R.filter(r => r.score < 3);
+
+ let a1 = nm + ' memperoleh skor rata-rata manajerial ' + fmt(res.overall) + ' dari 5,00 dengan benchmark ' + fmt(BENCH) + ', sehingga posisi keseluruhan ' +
+   (res.overall >= BENCH ? 'telah memenuhi atau melampaui target' : 'masih berada di bawah target') + '. Peran paling dominan adalah ' + res.dominant + ' (kategori ' + res.dominantCat +
+   '). Tiga peran terkuat: ' + strong.map(r => r.k + ' (' + fmt(r.score) + ')').join(', ') + '. ' + res.cats.map(c => c.n + ' ' + fmt(c.score) + ' (' + c.status + ')').join('; ') + '.';
+ sec.push({judul: 'Analisis Profil Peran', teks: a1});
+
+ let a2 = weak.length ? 'Peran di bawah benchmark: ' + weak.map(r => r.k + ' (' + fmt(r.score) + ', ' + r.status + ')').join(', ') + '. ' : 'Seluruh peran telah memenuhi benchmark sehingga profil tergolong seimbang. ';
+ if (low.length) a2 += 'Peran dengan skor di bawah 3,00 berisiko menjadi blind spot kepemimpinan: ' + low.map(r => r.k).join(', ') + '. ';
+ let flag = false;
+ if (R[7].score - R[6].score >= 0.5) { a2 += 'Disturbance Handler jauh lebih tinggi daripada Entrepreneur; waspadai pola pemadam kebakaran (firefighting) yang menyita waktu inovasi. '; flag = true; }
+ if (R[3].score - R[4].score >= 0.5) { a2 += 'Monitor jauh lebih tinggi daripada Disseminator; terdapat risiko kemacetan arus informasi (information bottleneck). '; flag = true; }
+ if (R[4].score - R[3].score >= 0.5) { a2 += 'Disseminator melampaui Monitor; pastikan informasi yang disebarkan berbasis data pemantauan yang memadai. '; flag = true; }
+ if (!flag) a2 += 'Tidak ditemukan ketidakseimbangan mencolok antar pasangan peran kunci. ';
+ sec.push({judul: 'Analisis Kesenjangan dan Keseimbangan', teks: a2.trim()});
+
+ const focus = (weak.length ? weak : sorted.slice().reverse()).slice(0, 3);
+ sec.push({judul: 'Saran Pengembangan (Development)', teks: (weak.length ? 'Prioritas pengembangan berikut disusun dari kesenjangan terbesar.' : 'Seluruh peran memenuhi target; berikut area penyempurnaan agar profil makin matang.') + '\n' +
+   focus.map(r => '• ' + r.k + ': fokuskan pada ' + r.f.toLowerCase() + ' dengan meningkatkan perilaku "' + r.o.toLowerCase() + '".').join('\n')});
+ sec.push({judul: 'Rencana Aksi IDP 30-60-90 Hari', teks:
+   '• 30 hari: lakukan refleksi dan minta umpan balik 360 derajat, lalu tetapkan target spesifik untuk peran ' + focus[0].k + '.\n' +
+   '• 60 hari: terapkan kegiatan terjadwal setiap minggu untuk peran prioritas, dan catat hasilnya bersama atasan atau mentor.\n' +
+   '• 90 hari: ulangi kuesioner MMRS, bandingkan skor dengan hasil awal, lalu sesuaikan Individual Development Plan.'});
+ if (sec.map(s => s.teks).join(' ').split(/\s+/).length < 100)
+   sec.push({judul: 'Catatan', teks: 'Skor MMRS merupakan penilaian mandiri sehingga sebaiknya dilengkapi umpan balik atasan, rekan, dan bawahan. Peran manajerial saling berkaitan; peningkatan satu peran sering mendukung peran lainnya.'});
+ return sec;
+}
+
+/* ===================== HITUNG + SIMPAN + CLEAR ===================== */
+function hitung() {
+ const p = {nama: $('nama').value.trim(), jabatan: $('jabatan').value.trim(), divisi: $('divisi').value.trim(), organisasi: $('organisasi').value.trim()};
+ if (!p.nama) { toast('Nama responden wajib diisi.'); $('nama').focus(); return; }
+ const ans = [];
+ for (let i = 0; i < 30; i++) {
+   const c = document.querySelector('input[name="q' + i + '"]:checked');
+   if (!c) { toast('Item nomor ' + (i + 1) + ' belum diisi.'); document.querySelector('input[name="q' + i + '"]').closest('.q').scrollIntoView({behavior: 'smooth', block: 'center'}); return; }
+   ans.push(Number(c.value));
+ }
+ const res = calculate(ans), now = new Date();
+ const pad = n => String(n).padStart(2, '0');
+ res.id = 'MMRS-' + now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + '-' + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds()) + '-' + Math.floor(100 + Math.random() * 900);
+ res.profile = p;
+ res.tanggal = now.toLocaleString('id-ID', {dateStyle: 'long', timeStyle: 'short'});
+ res.analysis = buildAnalysis(p, res);
+
+ const head = ['Timestamp', 'ID Respon', 'Nama', 'Jabatan', 'Divisi', 'Organisasi']
+   .concat(ITEMS.map((_, i) => 'Q' + (i + 1)), ROLES.map(r => 'Skor ' + r.k), CATS.map(c => 'Skor ' + c.n), ['Skor Keseluruhan', 'Peran Dominan', 'Kategori Dominan']);
+ const row = [now.toISOString(), res.id, p.nama, p.jabatan, p.divisi, p.organisasi]
+   .concat(ans, res.roles.map(r => r2(r.score)), res.cats.map(c => r2(c.score)), [r2(res.overall), res.dominant, res.dominantCat]);
+
+ const finish = saved => {
+   $('btnHitung').disabled = false; $('btnHitung').textContent = 'Hitung dan Analisis';
+   LAST = res; renderResult(res);
+   clearForm();
+   showTab(2);
+   toast(saved ? 'Data tersimpan ke database. Kuesioner telah dikosongkan.' : 'Hasil dihitung, tetapi TIDAK tersimpan (jalankan melalui Web App GAS). Kuesioner dikosongkan.', saved ? 3500 : 7000);
+ };
+ $('btnHitung').disabled = true; $('btnHitung').textContent = 'Memproses dan menyimpan...';
+ if (inGAS()) {
+   google.script.run.withSuccessHandler(() => finish(true))
+     .withFailureHandler(e => { $('btnHitung').disabled = false; $('btnHitung').textContent = 'Hitung dan Analisis'; toast('Gagal menyimpan: ' + (e.message || e), 7000); })
+     .saveRow(head, row);
+ } else finish(false);
+}
+
+/* ===================== TAMPILAN HASIL ===================== */
+function badge(s) { const c = /Memenuhi|Sangat Baik/.test(s) ? 'g' : /Perlu Perbaikan|Cukup/.test(s) ? 'y' : 'r'; return '<span class="b ' + c + '">' + esc(s) + '</span>'; }
+function renderResult(r) {
+ $('emptyRes').classList.add('hide'); $('res').classList.remove('hide');
+ const p = r.profile;
+ $('meta').textContent = [p.nama, p.jabatan, p.divisi, p.organisasi, r.tanggal, r.id].filter(Boolean).join(' | ');
+ $('kDom').textContent = r.dominant; $('kCat').textContent = r.dominantCat; $('kAvg').textContent = fmt(r.overall);
+ let t = '<tr><th>No</th><th>Peran</th><th>Kategori</th><th>Skor</th><th>Target</th><th>Gap</th><th>Status</th><th>Tingkat</th><th>Fokus Pengembangan</th></tr>';
+ r.roles.forEach(x => t += '<tr><td class="n">' + x.no + '</td><td>' + esc(x.n) + '</td><td>' + x.c + '</td><td class="n"><b>' + fmt(x.score) + '</b></td><td class="n">' + fmt(x.bench) + '</td><td class="n">' + fmt(x.gap) + '</td><td>' + badge(x.status) + '</td><td>' + x.level + '</td><td>' + esc(x.f) + '</td></tr>');
+ t += '<tr><td></td><td colspan="2"><b>Rata-rata keseluruhan</b></td><td class="n"><b>' + fmt(r.overall) + '</b></td><td class="n">' + fmt(BENCH) + '</td><td class="n">' + fmt(r.overall - BENCH) + '</td><td colspan="3"></td></tr>';
+ $('tRole').innerHTML = t;
+ let c = '<tr><th>Kategori</th><th>Peran</th><th>Skor</th><th>Target</th><th>Gap</th><th>Status</th></tr>';
+ r.cats.forEach(x => c += '<tr><td>' + x.n + '</td><td>' + x.roles + '</td><td class="n"><b>' + fmt(x.score) + '</b></td><td class="n">' + fmt(x.bench) + '</td><td class="n">' + fmt(x.gap) + '</td><td>' + badge(x.status) + '</td></tr>');
+ $('tCat').innerHTML = c;
+ $('analysis').innerHTML = r.analysis.map(s => '<h3>' + esc(s.judul) + '</h3><p>' + esc(s.teks) + '</p>').join('');
+ $('wc').textContent = '(' + r.analysis.map(s => s.teks).join(' ').split(/\s+/).length + ' kata)';
+ drawSpider(r);
+}
+
+/* ===================== GRAFIK SPIDER ===================== */
+function drawSpider(r) {
+ const cv = $('spider'), x = cv.getContext('2d'), W = cv.width, cx = W / 2, cy = W / 2 + 10, R = 250, n = r.roles.length;
+ const ang = i => -Math.PI / 2 + i * 2 * Math.PI / n, pt = (i, v) => [cx + R * v / 5 * Math.cos(ang(i)), cy + R * v / 5 * Math.sin(ang(i))];
+ const poly = f => { x.beginPath(); for (let i = 0; i < n; i++) { const p = f(i); i ? x.lineTo(p[0], p[1]) : x.moveTo(p[0], p[1]); } x.closePath(); };
+ x.fillStyle = '#fff'; x.fillRect(0, 0, W, W);
+ const bg = x.createRadialGradient(cx, cy, 10, cx, cy, R); bg.addColorStop(0, '#f4fbfb'); bg.addColorStop(1, '#e7eef8');
+ poly(i => pt(i, 5)); x.fillStyle = bg; x.fill();
+ x.strokeStyle = '#c3cfdd'; x.lineWidth = 1; x.font = '14px Segoe UI,Arial'; x.fillStyle = '#7b8896'; x.textAlign = 'center';
+ for (let l = 1; l <= 5; l++) { poly(i => pt(i, l)); x.stroke(); x.fillText(l, cx + 10, cy - R * l / 5 + 4); }
+ for (let i = 0; i < n; i++) { const p = pt(i, 5); x.beginPath(); x.moveTo(cx, cy); x.lineTo(p[0], p[1]); x.stroke(); }
+ x.setLineDash([8, 6]); x.strokeStyle = '#d64545'; x.lineWidth = 2.5; poly(i => pt(i, r.roles[i].bench)); x.stroke(); x.setLineDash([]);
+ const g = x.createLinearGradient(0, cy - R, 0, cy + R); g.addColorStop(0, 'rgba(18,164,160,.55)'); g.addColorStop(1, 'rgba(31,58,95,.55)');
+ poly(i => pt(i, r.roles[i].score)); x.fillStyle = g; x.shadowColor = 'rgba(31,58,95,.35)'; x.shadowBlur = 14; x.fill(); x.shadowBlur = 0; x.strokeStyle = '#1f3a5f'; x.lineWidth = 3; x.stroke();
+ for (let i = 0; i < n; i++) { const p = pt(i, r.roles[i].score); x.beginPath(); x.arc(p[0], p[1], 7, 0, 7); x.fillStyle = '#fff'; x.fill(); x.lineWidth = 3; x.strokeStyle = '#12a4a0'; x.stroke(); }
+ for (let i = 0; i < n; i++) {
+   const a = ang(i), cs = Math.cos(a), lx = cx + (R + 38) * cs, ly = cy + (R + 30) * Math.sin(a);
+   x.textAlign = cs > 0.3 ? 'left' : cs < -0.3 ? 'right' : 'center';
+   const px = x.textAlign === 'left' ? lx - 22 : x.textAlign === 'right' ? lx + 22 : lx;
+   x.font = 'bold 15px Segoe UI,Arial'; x.fillStyle = '#1f3a5f'; x.fillText(r.roles[i].k, px, ly);
+   x.font = '13px Segoe UI,Arial'; x.fillStyle = '#12a4a0'; x.fillText(fmt(r.roles[i].score), px, ly + 16);
+ }
+ x.font = '14px Segoe UI,Arial'; x.textAlign = 'left';
+ x.fillStyle = '#1f3a5f'; x.fillRect(20, 20, 18, 12); x.fillText('Skor Realisasi', 44, 31);
+ x.strokeStyle = '#d64545'; x.lineWidth = 2.5; x.setLineDash([6, 4]); x.beginPath(); x.moveTo(20, 50); x.lineTo(38, 50); x.stroke(); x.setLineDash([]);
+ x.fillStyle = '#1d2733'; x.fillText('Benchmark 4,00', 44, 55);
+}
+
+/* ===================== CETAK WORD / PDF ===================== */
+function save(blob, name) {
+ const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+ document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+function fileName(ext) { return 'Laporan_MMRS_' + LAST.profile.nama.replace(/[^\w]+/g, '_') + '.' + ext; }
+
+function cetak(f) {
+ if (!LAST) return;
+ const bs = [$('bDocx'), $('bPdf')]; bs.forEach(b => b.disabled = true); $('exMsg').textContent = 'Menyiapkan ' + f.toUpperCase() + '...';
+ const done = m => { bs.forEach(b => b.disabled = false); $('exMsg').textContent = m; };
+ try {
+   (f === 'pdf' ? makePdf() : makeDocx()).then(() => done('File ' + fileName(f === 'pdf' ? 'pdf' : 'docx') + ' diunduh.')).catch(e => done('Gagal: ' + e.message));
+ } catch (e) { done('Gagal: ' + e.message + ' (pastikan koneksi internet untuk memuat pustaka cetak).'); }
+}
+
+function makePdf() {
+ const r = LAST, p = r.profile, doc = new window.jspdf.jsPDF({unit: 'mm', format: 'a4'}), W = 210, M = 15;
+ let y = 16;
+ doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.text('LAPORAN MINTZBERG MANAGERIAL ROLE SURVEY (MMRS)', W / 2, y, {align: 'center'});
+ y += 6; doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.text('ID: ' + r.id + '  |  ' + r.tanggal, W / 2, y, {align: 'center'});
+ doc.autoTable({startY: y + 4, theme: 'grid', styles: {fontSize: 9}, columnStyles: {0: {fontStyle: 'bold', cellWidth: 45}}, body: [['Nama', p.nama], ['Jabatan / Posisi', p.jabatan], ['Divisi / Departemen', p.divisi], ['Organisasi', p.organisasi],
+   ['Peran Dominan', r.dominant], ['Kategori Dominan', r.dominantCat], ['Rata-rata Skor', fmt(r.overall)]]});
+ doc.autoTable({startY: doc.lastAutoTable.finalY + 5, theme: 'grid', styles: {fontSize: 8}, headStyles: {fillColor: [31, 58, 95]},
+   head: [['No', 'Peran', 'Kategori', 'Skor', 'Target', 'Gap', 'Status']],
+   body: r.roles.map(x => [x.no, x.n, x.c, fmt(x.score), fmt(x.bench), fmt(x.gap), x.status]).concat([['', 'Rata-rata keseluruhan', '', fmt(r.overall), fmt(BENCH), fmt(r.overall - BENCH), '']])});
+ doc.autoTable({startY: doc.lastAutoTable.finalY + 5, theme: 'grid', styles: {fontSize: 8}, headStyles: {fillColor: [18, 164, 160]},
+   head: [['Kategori', 'Peran', 'Skor', 'Gap', 'Status']], body: r.cats.map(c => [c.n, c.roles, fmt(c.score), fmt(c.gap), c.status])});
+ doc.addPage(); y = 16;
+ doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.text('Grafik Spider', M, y);
+ doc.addImage($('spider').toDataURL('image/png'), 'PNG', 45, y + 3, 120, 120); y += 130;
+ doc.text('Analisis dan Development', M, y); y += 6;
+ r.analysis.forEach(s => {
+   const lines = doc.splitTextToSize(s.teks, W - 2 * M);
+   if (y + 8 + lines.length * 4.6 > 285) { doc.addPage(); y = 16; }
+   doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.text(s.judul, M, y); y += 5;
+   doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.text(lines, M, y); y += lines.length * 4.6 + 3;
+ });
+ doc.save(fileName('pdf'));
+ return Promise.resolve();
+}
+
+function makeDocx() {
+ const D = window.docx, r = LAST, p = r.profile;
+ const para = (t, o) => new D.Paragraph(Object.assign({children: [new D.TextRun({text: t, bold: o && o.bold, size: o && o.size})]}, o && o.p || {}));
+ const cell = (t, h) => new D.TableCell({children: [new D.Paragraph({children: [new D.TextRun({text: String(t), bold: !!h, size: 17, color: h ? 'FFFFFF' : undefined})]})], shading: h ? {fill: '1F3A5F'} : undefined});
+ const table = (head, rows) => new D.Table({width: {size: 100, type: D.WidthType.PERCENTAGE}, rows: [new D.TableRow({children: head.map(h => cell(h, true))})].concat(rows.map(rw => new D.TableRow({children: rw.map(c => cell(c))})))});
+ const b64 = $('spider').toDataURL('image/png').split(',')[1], bin = atob(b64), data = new Uint8Array(bin.length);
+ for (let i = 0; i < bin.length; i++) data[i] = bin.charCodeAt(i);
+ const kids = [
+   para('LAPORAN MINTZBERG MANAGERIAL ROLE SURVEY (MMRS)', {bold: true, size: 30, p: {alignment: D.AlignmentType.CENTER}}),
+   para('ID: ' + r.id + '  |  ' + r.tanggal, {p: {alignment: D.AlignmentType.CENTER}}),
+   para('Identitas Responden', {bold: true, size: 26}),
+   table(['Item', 'Isian'], [['Nama', p.nama], ['Jabatan / Posisi', p.jabatan], ['Divisi / Departemen', p.divisi], ['Organisasi', p.organisasi]]),
+   para('Ringkasan', {bold: true, size: 26}),
+   para('Peran dominan: ' + r.dominant + ' | Kategori dominan: ' + r.dominantCat + ' | Rata-rata skor: ' + fmt(r.overall)),
+   para('Hasil Skoring 10 Peran', {bold: true, size: 26}),
+   table(['No', 'Peran', 'Kategori', 'Skor', 'Target', 'Gap', 'Status'],
+     r.roles.map(x => [x.no, x.n, x.c, fmt(x.score), fmt(x.bench), fmt(x.gap), x.status]).concat([['', 'Rata-rata keseluruhan', '', fmt(r.overall), fmt(BENCH), fmt(r.overall - BENCH), '']])),
+   para('Skor per Kategori', {bold: true, size: 26}),
+   table(['Kategori', 'Peran', 'Skor', 'Gap', 'Status'], r.cats.map(c => [c.n, c.roles, fmt(c.score), fmt(c.gap), c.status])),
+   para('Grafik Spider', {bold: true, size: 26}),
+   new D.Paragraph({alignment: D.AlignmentType.CENTER, children: [new D.ImageRun({data, transformation: {width: 400, height: 400}})]}),
+   para('Analisis dan Development', {bold: true, size: 26})
+ ];
+ r.analysis.forEach(s => { kids.push(para(s.judul, {bold: true, size: 22})); s.teks.split('\n').forEach(t => kids.push(para(t))); });
+ const doc = new D.Document({sections: [{children: kids}]});
+ return D.Packer.toBlob(doc).then(blob => save(blob, fileName('docx')));
+}
+</script>
+</body>
+</html>
