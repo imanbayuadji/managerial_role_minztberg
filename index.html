@@ -112,7 +112,7 @@ td.n{text-align:center}.b{padding:2px 8px;border-radius:12px;color:#fff;font-siz
 
     <div class="login-field">
       <label class="f">Password Akses</label>
-      <input type="password" id="logPass" placeholder="Format: nggakada-tahun" autocomplete="off">
+      <input type="password" id="logPass" placeholder="Format: leadership-tahun" autocomplete="off">
     </div>
 
     <button class="p" style="width:100%;margin-top:6px" onclick="doLogin()">Masuk</button>
@@ -221,7 +221,7 @@ function showTab(n) {
 
 /* ===================== LOGIKA LOGIN ===================== */
 function getValidPassword() {
-  return 'nggakada-' + new Date().getFullYear();
+  return 'leadership-' + new Date().getFullYear();
 }
 
 function doLogin() {
